@@ -18,8 +18,8 @@ namespace Async_await_Task
         private string url;
         private string initPath;
         private int loadLevel;
-        private Regex regexForSavedAddress = new Regex(@"^https://.+\..+");
-        private Regex regexForUnsavedAddress = new Regex(@"^http://.+\..+");
+        const string savedAddress = "https://";
+        const string unsavedAddress = "http://";
 
         public HtmlParser(string url, string path, int loadLevel)
         {
@@ -32,16 +32,18 @@ namespace Async_await_Task
         {
             IEnumerable<char> urlPath = "";
 
-            MatchCollection matchesForSavedAddress = regexForSavedAddress.Matches(url);
-            if (matchesForSavedAddress.Count > 0)
+            if (!string.IsNullOrEmpty(url))
             {
-                urlPath = url.Skip(8);
-            }
 
-            MatchCollection matchesForUnsavedAddress = regexForUnsavedAddress.Matches(url);
-            if (matchesForUnsavedAddress.Count > 0)
-            {
-                urlPath = url.Skip(7);
+                if (url.StartsWith(savedAddress))
+                {
+                    urlPath = url.Skip(8);
+                }
+
+                if (url.StartsWith(unsavedAddress))
+                {
+                    urlPath = url.Skip(7);
+                }
             }
 
             var builder = new StringBuilder();
@@ -60,7 +62,6 @@ namespace Async_await_Task
 
             if (loadLevel >= 0)
             {
-
                 Console.WriteLine($"Processing {url}" + '\n' + "Downloading html");
                 string htmlDoc = await DownloadHtmlAsync(url);
 
@@ -77,16 +78,24 @@ namespace Async_await_Task
 
                 Console.WriteLine("All resources are downloaded");
 
-                path = CreateFolder(path, "links");
-                Console.WriteLine("Created folder: links" + '\n');
+                if (loadLevel != 0)
+                {
+                    path = CreateFolder(path, "links");
+                    Console.WriteLine("Created folder: links" + '\n');
+                }
 
-                var elements = parsedHtml.QuerySelectorAll("a").Where(c => !string.IsNullOrEmpty(c.GetAttribute("href"))).ToList(); //&& c.GetAttribute("href").Contains(url)).ToList();
+                var elements = parsedHtml.QuerySelectorAll("a")
+                    .Where(c => !string.IsNullOrEmpty(c.GetAttribute("href")))
+                    .ToList(); 
 
-                foreach (var b in elements.Take(3))
+                foreach (var b in elements)
                 {
                     string subPath = path;
                     url = b.GetAttribute("href");
-                    subPath = CreateFolder(path, Path.GetRandomFileName());
+                    if (loadLevel != 0)
+                    {
+                        subPath = CreateFolder(path, Path.GetRandomFileName());
+                    }
                     await StartSavingAsync(loadLevel - 1, elements, subPath);
                 }
 
@@ -101,11 +110,7 @@ namespace Async_await_Task
 
             if (!Directory.Exists(path))
             {
-                try
-                {
-                    Directory.CreateDirectory(path);
-                }
-                catch (Exception e) { }
+                  Directory.CreateDirectory(path);
             }
 
             return path;
